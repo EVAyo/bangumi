@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ func (s *Scraper) updateBilibiliOverseas() error {
 	values := url.Values{}
 	for _, old := range datas {
 		values.Set("season_id", strconv.FormatInt(old.SeasonID, 10))
-		apiUrl := API_BILIBILI_SEASON + "?" + values.Encode()
+		apiUrl := API_BANGUMI_BILIBILI_SEASON + "?" + values.Encode()
 		resp, err := s.do(http.MethodGet, apiUrl, nil)
 		if err != nil {
 			return err
@@ -43,7 +44,7 @@ func (s *Scraper) updateBilibiliOverseas() error {
 		if resp.StatusCode != http.StatusOK {
 			return errors.New("status code error: " + resp.Status)
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -179,7 +180,7 @@ func (s *Scraper) scrapeBilibili() error {
 		if resp.StatusCode != http.StatusOK {
 			return errors.New("status code error: " + resp.Status)
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -228,6 +229,18 @@ func (s *Scraper) scrapeBilibili() error {
 			areas = append(areas, area.Name)
 		}
 		pubTime, _ := time.Parse(TIMESTAMP_FORMAT, result.Publish.PubTime)
+		seasonType := result.SeasonType
+		if seasonType == 0 {
+			seasonType = result.ShowSeasonType
+		}
+		seriesTitle := result.SeriesTitle
+		if seriesTitle == "" {
+			seriesTitle = result.Series.SeriesTitle
+		}
+		styles := result.Style
+		if len(styles) == 0 {
+			styles = result.Styles
+		}
 		new := &models.Bilibili{
 			Actors:      null.StringFrom(result.Actors),
 			Areas:       null.StringFrom(strings.Join(areas, "|")),
@@ -243,13 +256,13 @@ func (s *Scraper) scrapeBilibili() error {
 			Copyright:   null.StringFrom(result.Rights.Copyright),
 			SeasonID:    int64(result.SeasonID),
 			SeasonTitle: null.StringFrom(result.SeasonTitle),
-			SeasonType:  int64(result.SeasonType),
-			SeriesTitle: null.StringFrom(result.SeriesTitle),
+			SeasonType:  int64(seasonType),
+			SeriesTitle: null.StringFrom(seriesTitle),
 			SquareCover: null.StringFrom(result.SquareCover),
 			Coins:       null.Int64From(int64(result.Stat.Coins)),
 			Danmakus:    null.Int64From(int64(result.Stat.Danmakus)),
 			Views:       null.Int64From(int64(result.Stat.Views)),
-			Style:       null.StringFrom(strings.Join(result.Style, "|")),
+			Style:       null.StringFrom(strings.Join(styles, "|")),
 			Title:       null.StringFrom(strings.TrimSpace(result.Title)),
 			UpMid:       null.Int64From(int64(result.UpInfo.Mid)),
 		}
@@ -355,7 +368,7 @@ func (s *Scraper) generateBilibiliJson() error {
 		return err
 	}
 
-	if err := ioutil.WriteFile("bilibili.json", data, 0644); err != nil {
+	if err := os.WriteFile("bilibili.json", data, 0644); err != nil {
 		return err
 	}
 

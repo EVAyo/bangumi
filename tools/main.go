@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -42,6 +41,11 @@ func NewScraper() (*Scraper, error) {
 		},
 		db: db,
 	}, nil
+}
+
+func (s *Scraper) Close() {
+	s.db.Exec("VACUUM;")
+	s.db.Close()
 }
 
 func (s *Scraper) do(method, url string, body io.Reader) (*http.Response, error) {
@@ -84,7 +88,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer scraper.db.Close()
+	defer scraper.Close()
 	if err := scraper.scrapeAnigamer(); err != nil {
 		log.Println(err)
 	}
@@ -98,7 +102,7 @@ func main() {
 		log.Println(err)
 	}
 
-	if err := ioutil.WriteFile("update.json", []byte(`{"ts":`+strconv.FormatInt(time.Now().Unix(), 10)+`}`), 0644); err != nil {
+	if err := os.WriteFile("update.json", []byte(`{"ts":`+strconv.FormatInt(time.Now().Unix(), 10)+`}`), 0644); err != nil {
 		log.Println(err)
 	}
 }
